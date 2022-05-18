@@ -1,0 +1,10 @@
+{
+    "C_Cpp.errorSquiggles": "Enabled",
+    "files.associations": {
+        "stdio.h": "c",
+        "stdint.h": "c",
+        "tc01.h": "c",
+        "operations.h": "c",
+        "algorithm": "c"
+    }
+}
