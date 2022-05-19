@@ -140,6 +140,14 @@ uint8_t** instantiate_matrix(uint8_t** matrix, int rows, int cols) {
     return matrix;
 }
 
+uint8_t shift_rotate8_right(uint8_t x, int rotation) {
+    return (x >> rotation) | (x << (8 - rotation));
+}
+
+uint64_t shift_rotate8_left(uint64_t x, int rotation) {
+    return (x << rotation) | (x >> (8 - rotation));
+}
+
 uint64_t shift_rotate64_right(uint64_t x, int rotation) {
     return (x >> rotation) | (x << (64 - rotation));
 }

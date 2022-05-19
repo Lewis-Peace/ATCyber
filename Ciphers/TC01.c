@@ -1,133 +1,147 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "../Ciphers/TC01.h"
 #include "../Tools/operations.h"
 
-int main() {
-    uint64_t master_key = 0x1;
-    uint64_t plain_text = 0x1E0000000000;
-    uint64_t cipher_text_1;
-    uint64_t cipher_text_2;
-    cipher_text_1 = cipher(plain_text, master_key);
-    //cipher_text_2 = cipher(plain_text ^ 0xC0000000000, master_key);
-    printf("plain_text_1 = %lx\n", plain_text);
-    //printf("plain_text_2 = %lx\n", plain_text ^ 0xC0000000000);
-    printf("cipher_text_1 = %lx\n", cipher_text_1);
-    //printf("cipher_text_2 = %lx\n", cipher_text_2);
-    printf("decifered data = %lx\n", decrypt(cipher_text_1, master_key));
-    //printf("decifered data = %lx\n", decrypt(cipher_text_2, master_key));
+void print_state(uint8_t *state) {
+
+  for(int i = 0; i < 16;i++) {
+    if(i && i%4==0) printf(" ");
+    printf("%x", state[i]);
+  }
+  printf("\n");
 
 }
 
+int main() {
+    uint8_t const master_key[16] = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1};
+    uint8_t plain_text2[16] = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,4};
+    uint8_t plain_text[16] = {0,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,0,8};
+    uint8_t* cipher_text1; uint8_t* cipher_text2;
+    uint8_t* decrypted1; uint8_t* decrypted2;
+    printf("plaintext1 ");
+    print_state(plain_text);
+    printf("plaintext2 ");
+    print_state(plain_text2);
+    cipher_text1 = cipher(plain_text, master_key);
+    printf("ciphertext1 ");
+    print_state(cipher_text1);
+    cipher_text2 = cipher(plain_text2, master_key);
+    printf("ciphertext2 ");
+    print_state(cipher_text2);
+    decrypted1 = decrypt(cipher_text1, master_key);
+    printf("decription1 ");
+    print_state(decrypted1);
+    decrypted2 = decrypt(cipher_text2, master_key);
+    printf("decription2 ");
+    print_state(decrypted2);
 
-uint64_t cipher(uint64_t plain_text, uint64_t master_key) {
-    uint64_t data = plain_text;
-    for (int i = 0; i < 4; i++) {
-        printf("\nRound %i\n\n", i);
-        data = cipher_round(data, master_key, i);
+    return 0;
+}
+
+
+uint8_t* cipher(uint8_t* plain_text, const uint8_t* master_key) {
+    uint8_t* data = malloc(sizeof(uint8_t) * 16);
+    for (int i = 0; i < 16; i++) {
+        data[i] = plain_text[i];
     }
+    uint8_t* key = malloc(sizeof(uint8_t) * 16);
+    for (int i = 0; i < 16; i++) {
+        key[i] = master_key[i];
+    }
+    
+
+    for (int i = 0; i < 4; i++) {
+        uint8_t* round_key = malloc(sizeof(uint8_t) * 16);
+        key_scheduling(key, round_key);
+        cipher_round(data, round_key);
+        free(round_key);
+    }
+    free(key);
     return data;
 }
 
-
-uint64_t cipher_round(uint64_t round_input, uint64_t master_key, int round_number) {
-    uint64_t round_key = key_scheduling(master_key, round_number);
-    uint64_t temp = ARK(round_input, round_key);
-    printf("Round key = %lx\nRound input = %lx\nARK = %lx\n", round_key, round_input, temp);
-    temp = SC(temp);
-    printf("SC = %lx\n", temp);
-    uint8_t** matrix = SR(temp, matrix);
-    printf("SR = %lx\n", convert_into_64bits(matrix));
-    temp = MC(matrix);
-    printf("Round output = %lx\n", temp);
-    return temp;
+void right_rotation(uint8_t* bits, int rotate) {
+    if (rotate != 0) {
+        uint8_t temp = bits[15];
+        for (int i = 15; i > 0; i--) {
+            bits[i] = bits[i - 1];
+        }
+        bits[0] = temp;
+        right_rotation(bits, rotate - 1);
+    }
 }
 
-uint64_t ARK(uint64_t input_bits, uint64_t round_key) {
-    return input_bits ^ round_key;
+void cipher_round(uint8_t* round_input, uint8_t* round_key) {
+    ARK(round_input, round_key);
+    SC(round_input);
+    SR(round_input);
+    MC(round_input);
 }
 
-uint64_t SC(uint64_t input_bits) {
-    uint64_t result = 0;
-    uint64_t temp = input_bits;
+void ARK(uint8_t* input_bits, uint8_t* round_key) {
     for (int i = 0; i < 16; i++) {
-        uint8_t value_before_sbox = temp & 0xF;
-        uint64_t value_after_sbox = (uint64_t) sbox[value_before_sbox];
-        result += (value_after_sbox << i * 4);
-        temp = temp >> 4;
+        input_bits[i] ^= round_key[i];
     }
-    return result;
 }
 
-uint64_t key_scheduling(uint64_t master_key, int round) {
-    uint64_t round_key = master_key;
-    for (int i = 0; i < round; i++) {
-        round_key = shift_rotate64_right(round_key ^ 0xF33F, 16);
+void SC(uint8_t* input_bits) {
+    for (int i = 0; i < 16; i++) {
+        input_bits[i] = sbox[input_bits[i]];
     }
-    return round_key & 0x00000000FFFFFFFF;
 }
 
-uint64_t convert_into_64bits(uint8_t** matrix) {
-    uint64_t bit_string = 0;
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            bit_string |= matrix[j][i] & 0xF;
-            if (!(i == 3 && j == 3)) {
-                bit_string = bit_string << 4;
-            }
-        }
+void key_scheduling(uint8_t* key, uint8_t* round_key) {
+    for (int i = 0; i < 16; i++) {
+        round_key[i] = key[i];
     }
-    return bit_string;
+    for (int i = 0; i < 8; i++) {
+        round_key[i] = 0;
+    }
+    
+    key[15] ^= 0xf;
+    key[14] ^= 0x3;
+    key[13] ^= 0x3;
+    key[12] ^= 0xf;
+    right_rotation(key, 4);
 }
 
-uint64_t MC(uint8_t** input_matrix) {
-    uint8_t** result = instantiate_matrix(result, 4, 4);
+void MC(uint8_t* input_value) {
+    uint8_t temp[16];
 
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            for (int k = 0; k < 4; k++) {
-                result[i][j] = result[i][j] ^ (fixed_matrix[i][k] * input_matrix[k][j]);
-            }
-        }
-    }
-    return convert_into_64bits(result);
+    temp[0] = input_value[0] ^ input_value[2]  ; temp[4] = input_value[4] ^ input_value[6] ; temp[8]  = input_value[8] ^ input_value[10]  ; temp[12] = input_value[12] ^ input_value[14];
+    temp[1] = input_value[1] ^ input_value[2]  ; temp[5] = input_value[5] ^ input_value[6] ; temp[9]  = input_value[9] ^ input_value[10]  ; temp[13] = input_value[13] ^ input_value[14];
+    temp[2] = input_value[0]                   ; temp[6] = input_value[4]                  ; temp[10] = input_value[8]                    ; temp[14] = input_value[12];
+    temp[3] = input_value[2] ^ input_value[3]  ; temp[7] = input_value[6] ^ input_value[7] ; temp[11] = input_value[10] ^ input_value[11] ; temp[15] = input_value[14] ^ input_value[15]; 
+
+    memcpy(input_value, temp, 16*sizeof(uint8_t));
 }
 
-uint8_t** convert_into_matrix(uint64_t input_bits, uint8_t** input_matrix) {
-    input_matrix = instantiate_matrix(input_matrix, 4, 4);
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            uint8_t cell_value = input_bits & 0x0F;
-            input_matrix[3 - j][3 - i] = cell_value;
-            input_bits = input_bits >> 4;
-        }
-    }
-    return input_matrix;
-}
+void SR(uint8_t* input_bits) {
+  uint8_t temp[16];
+  temp[0] = input_bits[0];
+  temp[4] = input_bits[4];
+  temp[8] = input_bits[8];
+  temp[12] = input_bits[12];
 
-uint8_t** SR(uint64_t input_bits, uint8_t** input_matrix) {
-    input_matrix = convert_into_matrix(input_bits, input_matrix);
+  temp[1] = input_bits[5];
+  temp[5] = input_bits[9];
+  temp[9] = input_bits[13];
+  temp[13] = input_bits[1];
 
-    uint8_t temp = input_matrix[1][0];
-    input_matrix[1][0] = input_matrix[1][1];
-    input_matrix[1][1] = input_matrix[1][2];
-    input_matrix[1][2] = input_matrix[1][3];
-    input_matrix[1][3] = temp;
-    temp = input_matrix[2][0];
-    uint8_t temp2 = input_matrix[2][1];
-    input_matrix[2][0] = input_matrix[2][2];
-    input_matrix[2][1] = input_matrix[2][3];
-    input_matrix[2][2] = temp;
-    input_matrix[2][3] = temp2;
-    temp = input_matrix[3][0];
-    temp2 = input_matrix[3][1];
-    uint8_t temp3 = input_matrix[3][2];
-    input_matrix[3][0] = input_matrix[3][3];
-    input_matrix[3][1] = temp;
-    input_matrix[3][2] = temp2;
-    input_matrix[3][3] = temp3;
+  temp[2] = input_bits[10];
+  temp[6] = input_bits[14];
+  temp[10] = input_bits[2];
+  temp[14] = input_bits[6];
 
-    return input_matrix;
+  temp[3] = input_bits[15];
+  temp[7] = input_bits[3];
+  temp[11] = input_bits[7];
+  temp[15] = input_bits[11];
+
+  memcpy(input_bits, temp, 16*sizeof(uint8_t));
+
 }
 
 /**
@@ -136,79 +150,88 @@ uint8_t** SR(uint64_t input_bits, uint8_t** input_matrix) {
  */
 
 
-uint64_t decrypt(uint64_t cipher_text, uint64_t master_key) {
-    uint64_t data = cipher_text;
-    for (int i = 3; i >= 0; i--) {
-        //printf("\nRound %i\n\n", i);
-        data = decrypt_round(data, master_key, i);
-    }
-    
-}
-
-uint64_t decrypt_round(uint64_t cipher_text, uint64_t master_key, int round) {
-    uint64_t round_key = key_scheduling(master_key, round);
-    //printf("Round key = %lx\nRound input %lx\n", round_key, cipher_text);
-    uint8_t** matrix = reverse_MC(cipher_text, matrix);
-    //print_uint8_matrix(matrix, 4, 4);
-    uint64_t round_data = reverse_SR(matrix);
-    //printf("SR = %lx\n", round_data);
-    round_data = reverse_SC(round_data);
-    //printf("SC = %lx\n", round_data);
-    round_data = reverse_ARK(round_data, round_key);
-    //printf("Round output = %lx\n", round_data);
-    return round_data;
-}
-
-uint64_t reverse_ARK(uint64_t input_bits, uint64_t round_key) {
-    return input_bits ^ round_key;
-}
-
-uint64_t reverse_SC(uint64_t input_bits) {
-    uint64_t result = 0;
-    uint64_t temp = input_bits;
+uint8_t* decrypt(uint8_t* cipher_text, const uint8_t* master_key) {
+    uint8_t* data = malloc(sizeof(uint8_t) * 16);
     for (int i = 0; i < 16; i++) {
-        uint8_t value_before_sbox = temp & 0xF;
-        uint64_t value_after_sbox = (uint64_t) reverse_sbox[value_before_sbox];
-        result += (value_after_sbox << i * 4);
-        temp = temp >> 4;
+        data[i] = cipher_text[i];
     }
-    return result;
-}
+    uint8_t* key = malloc(sizeof(uint8_t) * 16);
+    for (int i = 0; i < 16; i++) {
+        key[i] = master_key[i];
+    }
 
-uint64_t reverse_SR(uint8_t** input_matrix) {
-    
-    uint8_t temp = input_matrix[1][3];
-    input_matrix[1][3] = input_matrix[1][2];
-    input_matrix[1][2] = input_matrix[1][1];
-    input_matrix[1][1] = input_matrix[1][0];
-    input_matrix[1][0] = temp;
-    temp = input_matrix[2][3];
-    uint8_t temp2 = input_matrix[2][2];
-    input_matrix[2][3] = input_matrix[2][1];
-    input_matrix[2][2] = input_matrix[2][0];
-    input_matrix[2][1] = temp;
-    input_matrix[2][0] = temp2;
-    temp = input_matrix[3][3];
-    temp2 = input_matrix[3][2];
-    uint8_t temp3 = input_matrix[3][1];
-    input_matrix[3][3] = input_matrix[3][0];
-    input_matrix[3][2] = temp;
-    input_matrix[3][1] = temp2;
-    input_matrix[3][0] = temp3;
+    uint8_t** round_keys = calloc(1, sizeof(uint8_t*) * 4);
+    for (int i = 0; i < 4; i++)
+    {
+        uint8_t* round_key = malloc(sizeof(uint8_t) * 16);
+        key_scheduling(key, round_key);
+        round_keys[i] = round_key;
+        
+    }
 
-    return convert_into_64bits(input_matrix);
-}
-
-uint8_t** reverse_MC(uint64_t input_bits, uint8_t** input_matrix) {
-    input_matrix = convert_into_matrix(input_bits, input_matrix);
-    uint8_t** result = instantiate_matrix(result, 4, 4);
 
     for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            for (int k = 0; k < 4; k++) {
-                result[i][j] = result[i][j] ^ (inverse_matrix[i][k] * input_matrix[k][j]);
-            }
-        }
+        decrypt_round(data, round_keys[3 - i]);
+        free(round_keys[3 - i]);
     }
-    return result;
+    free(round_keys);
+    free(key);
+
+    return data;
+}
+
+void decrypt_round(uint8_t* round_input, uint8_t* round_key) {
+    reverse_MC(round_input);
+    reverse_SR(round_input);
+    reverse_SC(round_input);
+    reverse_ARK(round_input, round_key);
+}
+
+void reverse_ARK(uint8_t* input_bits, uint8_t* round_key) {
+    for (int i = 0; i < 16; i++) {
+        input_bits[i] ^= round_key[i];
+    }
+}
+
+void reverse_SC(uint8_t* input_bits) {
+    for (int i = 0; i < 16; i++) {
+        input_bits[i] = reverse_sbox[input_bits[i]];
+    }
+}
+
+void reverse_SR(uint8_t* input_bits) {
+    
+  uint8_t temp[16];
+  temp[0] = input_bits[0];
+  temp[4] = input_bits[4];
+  temp[8] = input_bits[8];
+  temp[12] = input_bits[12];
+
+  temp[1] = input_bits[13];
+  temp[5] = input_bits[1];
+  temp[9] = input_bits[5];
+  temp[13] = input_bits[9];
+
+  temp[2] = input_bits[10];
+  temp[6] = input_bits[14];
+  temp[10] = input_bits[2];
+  temp[14] = input_bits[6];
+
+  temp[3] = input_bits[7];
+  temp[7] = input_bits[11];
+  temp[11] = input_bits[15];
+  temp[15] = input_bits[3];
+
+  memcpy(input_bits, temp, 16*sizeof(uint8_t));
+}
+
+void reverse_MC(uint8_t* input_value) {
+    uint8_t temp[16];
+
+    temp[0] = input_value[2]                                    ; temp[4] = input_value[6]                                   ; temp[8] = input_value[10]                                     ; temp[12] = input_value[14];
+    temp[1] = input_value[0] ^ input_value[1] ^ input_value[2]  ; temp[5] = input_value[4] ^ input_value[5] ^ input_value[6] ; temp[9] = input_value[8] ^ input_value[9] ^ input_value[10]   ; temp[13] = input_value[12] ^ input_value[13] ^ input_value[14];
+    temp[2] = input_value[0] ^ input_value[2]                   ; temp[6] = input_value[4] ^ input_value[6]                  ; temp[10] = input_value[8] ^ input_value[10]                   ; temp[14] = input_value[12] ^ input_value[14];
+    temp[3] = input_value[0] ^ input_value[2] ^ input_value[3]  ; temp[7] = input_value[4] ^ input_value[6] ^ input_value[7] ; temp[11] = input_value[8] ^ input_value[10] ^ input_value[11] ; temp[15] = input_value[12] ^ input_value[14] ^ input_value[15]; 
+
+    memcpy(input_value, temp, 16*sizeof(uint8_t));
 }
