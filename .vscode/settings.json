@@ -5,6 +5,19 @@
         "stdint.h": "c",
         "tc01.h": "c",
         "operations.h": "c",
-        "algorithm": "c"
+        "algorithm": "c",
+        "array": "c",
+        "string": "c",
+        "string_view": "c",
+        "random": "c",
+        "*.tcc": "cpp",
+        "deque": "cpp",
+        "vector": "cpp",
+        "fstream": "cpp",
+        "istream": "cpp",
+        "sstream": "cpp",
+        "functional": "cpp",
+        "type_traits": "cpp",
+        "tuple": "cpp"
     }
 }

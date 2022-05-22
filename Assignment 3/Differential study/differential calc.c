@@ -43,8 +43,8 @@ int main(int argc, char* argv[]) {
 
 unsigned int matrix[4][4] = {
     {0,0,0,0},
-    {0,0xc,0,0},
     {0,0,0,0},
+    {0,0,0,0xc},
     {0,0,0,0}
 };
 
@@ -60,33 +60,6 @@ unsigned int** get_input_matrix() {
         }
     }
     return m;
-}
-
-// Val is the 64 bit value
-void all_matrix_permutation(int d, int rounds) {
-    unsigned long val = 0xc;
-    FILE* fh = fopen("probs.txt", "w");
-    fprintf(fh, "\n");
-    fclose(fh);
-    fh = fopen("probs.txt", "a");
-    for (int i = 0; i < 16; i++) {
-        unsigned int input_line1[4] = {(val & 0xF000000000000000) >> 60,(val & 0x0000F00000000000) >> 44,(val & 0x00000000F0000000) >> 28,(val & 0x000000000000F000) >> 12};
-        unsigned int input_line2[4] = {(val & 0x0F00000000000000) >> 56,(val & 0x00000F0000000000) >> 40,(val & 0x000000000F000000) >> 24,(val & 0x0000000000000F00) >> 8};
-        unsigned int input_line3[4] = {(val & 0x00F0000000000000) >> 52,(val & 0x000000F000000000) >> 36,(val & 0x0000000000F00000) >> 20,(val & 0x00000000000000F0) >> 4};
-        unsigned int input_line4[4] = {(val & 0x000F000000000000) >> 48,(val & 0x0000000F00000000) >> 32,(val & 0x00000000000F0000) >> 16,(val & 0x000000000000000F)};
-        unsigned int* input_matrix[4] = {input_line1, input_line2, input_line3, input_line4};
-        //unsigned int input_line1[4] = {(val & 0xF000) >> 12,(val & 0x00F0) >> 4};
-        //unsigned int input_line2[4] = {(val & 0x0F00) >> 8,(val & 0x000F)};
-        //unsigned int* input_matrix[4] = {input_line1, input_line2};
-        //print_matrix(input_matrix, d);
-        //printf("\n");
-        cipher(rounds, input_matrix);
-        val = val << 4;
-        fprintf(fh, "Total probability = %.12f\n", p);
-        p = 1;
-    }
-    fclose(fh);
-    
 }
 
 unsigned int** cipher(int rounds, unsigned int** m) {
