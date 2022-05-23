@@ -161,8 +161,8 @@ void possible_keys_print(int index) {
 
     key_guess[index] = temp;
     
-    assert(count != 0);
-    printf("Should be %X with %i right guess and used %i plain\n", temp, possible_keys[index][temp], count);
+    //assert(count != 0);
+    //printf("Should be %X with %i right guess and used %i plain\n", temp, possible_keys[index][temp], count);
 }
 
 uint8_t** append(uint8_t** old_list, int len, uint8_t* value) {
@@ -348,6 +348,56 @@ void attack3(int input_sbox) {
     memset(possible_keys, 0, sizeof(uint8_t) * 16);
 }
 
+void attack4(int input_sbox) {
+    for (int i = 0; i < PLAIN_NUMBER; i++) {
+        uint8_t* p1 = empty_data;
+        uint8_t* p2 = empty_data;
+        uint8_t* c1 = empty_data;
+        uint8_t* c2 = empty_data;
+        get_random_plain_text(p1);
+        for (int s = 0; s < 16; s++) {
+            p2[s] = p1[s];
+        }
+        p2[15] ^= 0xc;
+        encrypt(p1, c1);
+        encrypt(p2, c2);
+        do_inverse_round(c1);
+        do_inverse_round(c2);
+        if ((c1[14] ^ c2[14]) == 1) {
+            for (uint8_t k1 = 0; k1 < 16; k1++)
+            {
+                for (uint8_t k2 = 0; k2 < 16; k2++)
+                {
+                    uint8_t* c1_temp = empty_data;
+                    uint8_t* c2_temp = empty_data;
+                    for (int s = 0; s < 16; s++) {
+                        c1_temp[s] = c1[s];
+                        c2_temp[s] = c2[s];
+                    }
+                    c2_temp[14] ^= (k1 ^ k2);
+                    c1_temp[14] ^= (k1 ^ k2);
+                    do_inverse_round(c1_temp);
+                    do_inverse_round(c2_temp);
+                    if ((c1_temp[13] ^ c2_temp[13]) == 0x3) {
+                        possible_keys[0][k1 ^ 0xf]++;
+                        possible_keys[5][k2]++;
+                    }
+                    free(c1_temp);
+                    free(c2_temp);
+                }
+            }
+
+            count++;
+        }
+        free(p1);
+        free(c1);
+        free(c2);
+    }
+    possible_keys_print(input_sbox);
+    count = 0;
+    memset(possible_keys, 0, sizeof(uint8_t) * 16);
+}
+
 void get_nibble_value(int nibble_index, int delete_from_array, uint8_t* key) {
     int temp = 0;
     for (int i = 0; i < 16; i++) {
@@ -362,10 +412,14 @@ void get_nibble_value(int nibble_index, int delete_from_array, uint8_t* key) {
     } 
 }
 
+time_t time_s;
+time_t time_e;
 void test_key(uint8_t* key, uint8_t* c, uint8_t* p) {
     uint8_t* d = empty_data;
     uint8_t* temp_c = empty_data;
+    uint8_t* key_copy = empty_data;
     for (int z = 0; z < 16; z++) { temp_c[z] = c[z]; }
+    for (int z = 0; z < 16; z++) { key_copy[z] = key[z]; }
     local_decrypt(temp_c, d, key);
     free(temp_c);
     int condition = TRUE;
@@ -374,15 +428,20 @@ void test_key(uint8_t* key, uint8_t* c, uint8_t* p) {
         if (condition == FALSE) { break; }
     }
     if (condition == TRUE) {
-        print_state(key);
+        printf("The key of the cipher is ");
+        print_state(key_copy);
+        time_t time_e = time(0);
+        printf("Enlapsed time %li\n", time_e - time_s);
         exit(0);
     }
+    free(d);
+    free(key_copy);
 }
 
 int main() {
     uint8_t key[] = MASTER_KEY;
     srand((unsigned)time(0)); 
-    print_state(key);
+    //print_state(key);
     for (int i = 12; i < 16; i++) {
         int j = i - 1;
         if (j == 11) {
@@ -394,8 +453,9 @@ int main() {
     attack2(9);
     //attack3(10);
     //attack3(11);
+    attack4(0);
     // Attak and attack 2 are consistently good, attack3 sometimes doesn't even get the key by the highest
-    print_state(key_guess);
+    //print_state(key_guess);
     
     FILE* fh = fopen("guess_list.txt", "w");
     for (int i = 0; i < 16; i++)
@@ -406,40 +466,54 @@ int main() {
         }
         fprintf(fh, "\n");
     }
-    std::vector<std::vector<int>> valid_keys_vectors;
-    for (int i = 8; i < 16; i++)
-    {
-        std::vector<int> v = get_valid_keys(i);
-        valid_keys_vectors.push_back(v);
-        for (int j: v)
-        {
-            printf("%X ", j);
-        }
-        printf("\n");
-        
-    }
 
     // Bruteforce for the other bits
     uint8_t* p = empty_data;
     uint8_t* c = empty_data;
-    int change8 = FALSE;
-    int change9 = FALSE;
-    int change10 = FALSE;
-    int change11 = FALSE;
-    int change12 = FALSE;
-    int change13 = FALSE;
-    int change14 = FALSE;
-    int change15 = FALSE;
     get_random_plain_text(p);
     encrypt(p, c);
     uint8_t* master_key_guess = empty_data;
+    
+    time_s = time(0);
+    
+    // Change the 1 with the first 32 bit of the master key to speed
+    // up the process of key guessing
     for (uint64_t i = 0x100000000; i <= 0xFFFFFFFF00000000; i = i + 0x100000000)
     {
         convert_bits_to_array(master_key_guess, i);
 
-        for (std::vector<int> keys_vector: valid_keys_vectors) {
-            
-            test_key(master_key_guess, c, p);
+        // nibble 8
+        for (uint8_t nibble8: get_valid_keys(8)) {
+            master_key_guess[8] = nibble8;
+            // nibble 9
+            for (uint8_t nibble9: get_valid_keys(9)) {
+                master_key_guess[9] = nibble9;
+                // nibble 10
+                for (uint8_t nibble10: get_valid_keys(10)) {
+                    master_key_guess[10] = nibble10;
+                    // nibble 11
+                    for (uint8_t nibble11: get_valid_keys(11)) {
+                        master_key_guess[11] = nibble11;
+                        // nibble 12
+                        for (uint8_t nibble12: get_valid_keys(12)) {
+                            master_key_guess[12] = nibble12;
+                            // nibble 13
+                            for (uint8_t nibble13: get_valid_keys(13)) {
+                                master_key_guess[13] = nibble13;
+                                // nibble 14
+                                for (uint8_t nibble14: get_valid_keys(14)) {
+                                    master_key_guess[14] = nibble14;
+                                    // nibble 15
+                                    for (uint8_t nibble15: get_valid_keys(15)) {
+                                        master_key_guess[15] = nibble15;
+                                        test_key(master_key_guess, c, p);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
     }

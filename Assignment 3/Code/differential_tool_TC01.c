@@ -17,7 +17,6 @@ unsigned int** c_round(unsigned int**);
 unsigned int** cipher(int, unsigned int**);
 double probability_SBox(unsigned int**);
 double permute_alpha_probability(unsigned int);
-void all_matrix_permutation(int, int);
 unsigned int** get_input_matrix();
 
 #define ROUNDS 4
@@ -38,14 +37,13 @@ int main(int argc, char* argv[]) {
     cipher(ROUNDS, m);
     fprintf(fh, "Total probability = %.12f\n", p);
     fclose(fh);
-    //all_matrix_permutation(4, 6);
 }
 
 unsigned int matrix[4][4] = {
     {0,0,0,0},
     {0,0,0,0},
-    {0,0,0,0xc},
-    {0,0,0,0}
+    {0,0,0,0},
+    {0,0,0,0xc}
 };
 
 unsigned int** get_input_matrix() {

@@ -18,6 +18,9 @@
         "sstream": "cpp",
         "functional": "cpp",
         "type_traits": "cpp",
-        "tuple": "cpp"
+        "tuple": "cpp",
+        "math.h": "c",
+        "stdlib.h": "c",
+        "iostream": "cpp"
     }
 }
