@@ -325,7 +325,6 @@ char* hash_function(string message) {
 
 int main() {
     srand(time(0));
-    vector<string> messages;
 
     // Hash the message with the secret
     string secret = gen_random(12);
