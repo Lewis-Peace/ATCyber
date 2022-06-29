@@ -116,6 +116,25 @@ public:
 
     void hash(uint8_t* plain_text, uint8_t* cipher_text) {
         encrypt(plain_text, cipher_text);
+        for (int i = 0; i < 16; i++) {
+            cipher_text[i] ^= plain_text[i];
+        }
+        
+        truncate(cipher_text);
+    }
+
+    void chained_hash(uint64_t* blocks, int number_of_blocks, uint8_t* cipher_text) {
+        uint8_t* data = (uint8_t*) calloc(16, sizeof(int8_t));
+        for (int b = 0; b < number_of_blocks; b++) {
+            for (int i = 0; i < 16; i++) {
+                data[15 - i] = (blocks[b] & (((uint64_t)0xF) << i * 4)) >> (i * 4);
+                data[i] ^= cipher_text[i];
+            }
+            encrypt(data, cipher_text);
+            for (int i = 0; i < 16; i++) {
+                cipher_text[15 - i] ^= (blocks[b] & (((uint64_t)0xF) << i * 4)) >> (i * 4);
+            }
+        }
         truncate(cipher_text);
     }
     
@@ -123,37 +142,35 @@ public:
 
 void bruteforce_test() {
     TC01H cipher = TC01H();
-    uint8_t plain_text[16] = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,5,0};
-    uint8_t plain_text2[16] = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,5,0};
+    uint8_t plain_text[16] = {0,0,5,0, 0,0,0,0, 0,0,0,0, 0,0,0,0};
+    uint8_t plain_text2[16] = {0,0,5,0, 0,0,0,0, 0,0,0,0, 0,0,0,0};
     bool collision = true;
-    for (int k = 0; k < 16; k++)
-    {
-    for (int i = 1; i < 16; i++)
-    {
-        plain_text2[k] = i;
-        uint8_t* cipher_text1 = (uint8_t*) calloc(16, sizeof(uint8_t));
-        uint8_t* cipher_text2 = (uint8_t*) calloc(16, sizeof(uint8_t));
-        cipher.hash(plain_text, cipher_text1);
-        cipher.hash(plain_text2, cipher_text2);
-        for (int j = 0; j < 16; j++) {
-            if (cipher_text1[j] != cipher_text2[j]) {
-                collision = false;
+    for (int k = 12; k < 16; k++) {
+        for (int i = 1; i < 16; i++) {
+            plain_text2[k] = i;
+            uint8_t* cipher_text1 = (uint8_t*) calloc(16, sizeof(uint8_t));
+            uint8_t* cipher_text2 = (uint8_t*) calloc(16, sizeof(uint8_t));
+            cipher.hash(plain_text, cipher_text1);
+            cipher.hash(plain_text2, cipher_text2);
+            for (int j = 0; j < 16; j++) {
+                if (cipher_text1[j] != cipher_text2[j]) {
+                    collision = false;
+                }
             }
+            if (collision == true) {
+                //print_state(plain_text);
+                //print_state(plain_text2);
+                //print_state(cipher_text1);
+                //print_state(cipher_text2);
+                printf("Collision found k = %i, i = %i\n", k, i);
+            }
+            collision = true;
+            plain_text2[k] = 0;
         }
-        if (collision == true) {
-            //print_state(plain_text);
-            //print_state(plain_text2);
-            //print_state(cipher_text1);
-            //print_state(cipher_text2);
-            printf("Collision found k = %i, i = %i\n", k, i);
-        }
-        collision = true;
-        plain_text2[k] = 0;
-    }
     }
 }
 
-int main() {
+void hash_single_operation() {
     TC01H cipher = TC01H();
     uint8_t plain_text[16] = {0,0,5,0, 0,0,0,0, 0,0,0,0, 0,0,0,0};
     uint8_t plain_text2[16] = {0,0,5,0, 0,0,0,0, 0,0,0,0, 5,12,11,0};
@@ -165,8 +182,31 @@ int main() {
     print_state(plain_text2);
     print_state(cipher_text1);
     print_state(cipher_text2);
+}
 
+void chained_hash_test() {
+    TC01H cipher = TC01H();
+    uint8_t* cipher_text3 = (uint8_t*) calloc(16, sizeof(uint8_t));
+    uint64_t data[2] = {0x0050000000005CB0, 0x77008e46f94602a7};
+    cipher.chained_hash(data, 2, cipher_text3);
+    print_state(cipher_text3);
+    uint8_t* cipher_text4 = (uint8_t*) calloc(16, sizeof(uint8_t));
+    uint64_t data2[2] = {0x0050000000004C00, 0x77008e46f9460207};
+    cipher.chained_hash(data2, 2, cipher_text4);
+    print_state(cipher_text4);
+}
+
+int main() {
+
+    printf("Single hash operation\n");
+    hash_single_operation();
+    printf("\n");
+    //printf("Bruteforce test for each nibble\n");
     //bruteforce_test();
+    //printf("\n");
+    printf("Chained hash operation\n");
+    chained_hash_test();
+    printf("\n");
 
     return 0;
 }

@@ -333,13 +333,13 @@ int main() {
     char* result = hash_function(starting_message);
 
 
-    string append = "Append this message";
+    string append = "Append this message pls";
     printf("Want to add '%s' to message '%s'\n", append.c_str(), starting_message.c_str());
     
     // The attack
     MD5* md5_attack = new MD5(2);
     md5_attack->add_previous_output(result);
-    char* ext_data;
+    char* ext_data = (char*) calloc(append.size(), sizeof(char));
     strcpy(ext_data, append.c_str());
     md5_attack->update(ext_data);
     char* result_extension = md5_attack->finalize();
