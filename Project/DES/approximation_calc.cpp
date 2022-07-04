@@ -71,7 +71,7 @@ int main() {
         DesExpansion[i] = 32 - DesExpansion[i]; 
     }
 
-    vector<int> PL = {1,2,6,9,15,25};
+    vector<int> PL = {3, 7, 11, 19, 23, 27, 31};
     for (int j = 0; j < PL.size(); j++)
     {
         printf("PL[%i]\n", PL[j]);

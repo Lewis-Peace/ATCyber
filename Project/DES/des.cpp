@@ -2,6 +2,7 @@
 #include "des_key.h"
 #include "des_data.h"
 #include "des_lookup.h"
+#include "des_approximations.h"
 
 #include <inttypes.h>
 #include <iostream>
@@ -154,7 +155,11 @@ ui32 DES::f(ui32 R, ui64 k) // f(R,k) function
         char column = (char) ((s_input & (0x0000780000000000 >> 6*i)) >> (43-6*i));
 
         s_output <<= 4;
-        s_output |= (ui32) (SBOX[i][16*row + column] & 0x0f);
+        if (ONE_SBOX == 0) {
+            s_output |= (ui32) (SBOX[4][16*row + column] & 0x0f);
+        } else {
+            s_output |= (ui32) (SBOX[i][16*row + column] & 0x0f);
+        }
     }
 
     // applying the round permutation
@@ -171,8 +176,6 @@ ui32 DES::f(ui32 R, ui64 k) // f(R,k) function
 //#pragma GCC pop_options
 
 #define MASTER_KEY 0x0
-#define ATTACK_REPEAT 10
-using std::vector;
 
 class tools {
 private:
@@ -180,26 +183,6 @@ private:
 public:
     tools(/* args */);
     ~tools();
-
-    static int max_element(int array[ATTACK_REPEAT]) {
-        int result = INT_MIN;
-        for (size_t i = 0; i < ATTACK_REPEAT; i++) {
-            if (array[i] > result) {
-                result = array[i];
-            }
-        }
-        return result;
-    }
-
-    static int min_element(int array[ATTACK_REPEAT]) {
-        int result = INT_MAX;
-        for (size_t i = 0; i < ATTACK_REPEAT; i++) {
-            if (array[i] < result) {
-                result = array[i];
-            }
-        }
-        return result;
-    }
 
     int static mask_and_xor(uint64_t value, uint64_t mask) {
         value = value & mask;
@@ -317,16 +300,48 @@ void print_keys() {
     }
     
 }
-/*
-void revert_key() {
-    uint64_t key = 0x400000;
-    uint64_t new_key = 0;
-    for (int i = 0; i < ROUNDS; i++) {
-        printf("K%i = %lX\n", ROUNDS - i, key);
-        addbit(&new_key, key, i, PC2_old[i] - 1);
+
+void left_rotation(uint32_t* data, int rotate) {
+    printf("%X\n", *data);
+    *data = ((*data >> (28 - rotate)) | (*data << rotate)) & 0xFFFFFFF;
+    printf("%X\n", *data);
+}
+
+void inverse_key_schedule(uint64_t round_key, int round) {
+    const int inverse_PC2[56] = {
+        4,23,6,15,5,9,19,17,
+        -1,11,2,14,22,0,8,18,
+        1,-1,13,21,10,-1,12,3,
+        -1,16,20,7,41,30,26,47,
+        34,40,-1,45,27,-1,38,31,
+        24,43,-1,36,33,42,28,35,
+        37,44,32,25,41,-1,29,39
+    };
+    uint64_t inverted_round = 0;
+    uint64_t temp = round_key;
+    for (int i = 0; i < 56; i++) {
+        if (inverse_PC2[i] != -1) { // converning right part
+            inverted_round |= (temp & (uint64_t) 0b1) << inverse_PC2[i];
+        }
+        temp = temp >> 1;
     }
-    
-}*/
+    // Used for inversion as testing
+    //uint64_t testing = 0;
+    //temp = inverted_round;
+    //for (int i = 0; i < 56; i++) {
+    //    if (PC2[i] != -1) { // converning right part
+    //        testing |= (temp & (uint64_t) 0b1) << PC2[i] - 1;
+    //    }
+    //    temp = temp >> 1;
+    //}
+    //printf("l = %016lx\n", testing);
+
+    uint32_t left_part = (inverted_round & 0xFFFFFFF0000000) >> 28;
+    uint32_t right_part = inverted_round & 0xFFFFFFF;
+
+    printf("%lx\n", inverted_round);
+    printf("L = %x, R = %x\n", left_part, right_part);
+}
 
 void cipher(uint64_t* data) {
     uint64_t key = MASTER_KEY;
@@ -374,33 +389,35 @@ uint64_t obtain_mask(vector<int> indexes_list) {
     return mask;
 }
 
-vector<vector<int>> plain_masks = {
-    {32+15, 7,18,24,27,28,29,30,31}
+vector<float> probabilities = {
+    //0.519
+    0.7,
+    0.7,
+    0.7
     };
-vector<vector<int>> cipher_masks = {
-    {32+15, 7,18,24,27,28,29,30,31}
-    };
-vector<float> probabilities = {0.519};
 
 // Main
 int main(int argc, char ** argv) {
-    printf("Running DES of %i rounds\n", ROUNDS);
-    printf("Using version with one sBox\n");
+    printf("Running DES of %i rounds and one SBox\n", ROUNDS);
 
     srand(time(0));
     
     //print_keys();
 
-    for (int i = 0; i < plain_masks.size(); i++) {
-        float p = probabilities[i];
-        uint64_t plain_mask = obtain_mask(plain_masks[i]);
-        uint64_t cipher_mask = obtain_mask(cipher_masks[i]);
-        attack(plain_mask, cipher_mask, p);
-    }
+    //for (int i = 0; i < plain_masks.size(); i++) {
+    //    float p = probabilities[i];
+    //    uint64_t plain_mask = obtain_mask(plain_masks[i]);
+    //    uint64_t cipher_mask = obtain_mask(cipher_masks[i]);
+    //    attack(plain_mask, cipher_mask, 0.7);
+    //}
     
     //for (int i = 0; i < 8; i++) {
     //    tools::compute_table(i);
     //}
 
+    inverse_key_schedule(0x545810C8145672, 1);
+
+    uint32_t data = 0xF000000;
+    left_rotation(&data, 4);
     return 0;
 }
