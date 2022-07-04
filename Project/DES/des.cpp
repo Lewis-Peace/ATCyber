@@ -175,7 +175,7 @@ ui32 DES::f(ui32 R, ui64 k) // f(R,k) function
 
 //#pragma GCC pop_options
 
-#define MASTER_KEY 0x0
+#define MASTER_KEY 0x80
 
 class tools {
 private:
@@ -183,6 +183,11 @@ private:
 public:
     tools(/* args */);
     ~tools();
+
+    static void right_rotation(uint32_t* data, int round) {
+        int rotate = ITERATION_SHIFT[round];
+        *data = ((*data << (28 - rotate)) | (*data >> rotate)) & 0xFFFFFFF;
+    }
 
     int static mask_and_xor(uint64_t value, uint64_t mask) {
         value = value & mask;
@@ -301,12 +306,6 @@ void print_keys() {
     
 }
 
-void left_rotation(uint32_t* data, int rotate) {
-    printf("%X\n", *data);
-    *data = ((*data >> (28 - rotate)) | (*data << rotate)) & 0xFFFFFFF;
-    printf("%X\n", *data);
-}
-
 void inverse_key_schedule(uint64_t round_key, int round) {
     const int inverse_PC2[56] = {
         4,23,6,15,5,9,19,17,
@@ -317,6 +316,17 @@ void inverse_key_schedule(uint64_t round_key, int round) {
         24,43,-1,36,33,42,28,35,
         37,44,32,25,41,-1,29,39
     };
+    const int inverse_PC1[64] = {
+        7,15,23,55,51,43,35,-1,
+        6,14,22,54,50,42,34,-1,
+        5,13,21,53,49,41,33,-1,
+        4,12,20,52,48,40,32,-1,
+        3,11,19,27,47,39,31,-1,
+        2,10,18,26,46,38,30,-1,
+        1,9,17,25,45,37,8,-1,
+        0,8,16,24,44,36,28,-1
+    };
+    
     uint64_t inverted_round = 0;
     uint64_t temp = round_key;
     for (int i = 0; i < 56; i++) {
@@ -341,6 +351,25 @@ void inverse_key_schedule(uint64_t round_key, int round) {
 
     printf("%lx\n", inverted_round);
     printf("L = %x, R = %x\n", left_part, right_part);
+
+    for (int i = round; i > 0; i--) {
+        tools::right_rotation(&left_part, i);
+        tools::right_rotation(&right_part, i);
+    }
+    
+    inverted_round = left_part << 28 | right_part;
+
+    temp = inverted_round;
+    inverted_round = 0;
+    for (int i = 0; i < 64; i++) {
+        if (inverse_PC1[i] != -1) { // converning right part
+            inverted_round |= (temp & (uint64_t) 0b1) << inverse_PC1[i];
+        }
+        temp = temp >> 1;
+    }
+
+    printf("%lx\n", inverted_round);
+
 }
 
 void cipher(uint64_t* data) {
@@ -402,9 +431,10 @@ int main(int argc, char ** argv) {
 
     srand(time(0));
     
-    //print_keys();
+    print_keys();
 
-    //for (int i = 0; i < plain_masks.size(); i++) {
+    //int approximation_number = plain_masks.size();
+    //for (int i = 0; i < approximation_number; i++) {
     //    float p = probabilities[i];
     //    uint64_t plain_mask = obtain_mask(plain_masks[i]);
     //    uint64_t cipher_mask = obtain_mask(cipher_masks[i]);
@@ -415,9 +445,7 @@ int main(int argc, char ** argv) {
     //    tools::compute_table(i);
     //}
 
-    inverse_key_schedule(0x545810C8145672, 1);
+    inverse_key_schedule(0x8000000, 1);
 
-    uint32_t data = 0xF000000;
-    left_rotation(&data, 4);
     return 0;
 }
