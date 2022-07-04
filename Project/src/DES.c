@@ -266,6 +266,8 @@ void key_schedule(uint64_t* key, uint64_t* next_key, int round)
     // Use next_key in this function again as the new key to change
 }
 
+#define ONE_SBOX 1
+
 void rounds(uint64_t *data, uint64_t key)
 { 
     uint64_t right_block = 0;
@@ -296,8 +298,12 @@ void rounds(uint64_t *data, uint64_t key)
                 coordy += 0x1 << (4 - jj);
             }
         }
-    
-        substitued = DesSbox[ii][coordx][coordy];
+
+        if (ONE_SBOX == 0) {
+            substitued = DesSbox[4][coordx][coordy];
+        } else {
+            substitued = DesSbox[ii][coordx][coordy];
+        }
         substitued = substitued << (60 - (4 * ii));
         right_block_temp += substitued;
     }
@@ -322,17 +328,17 @@ void rounds(uint64_t *data, uint64_t key)
 
 // End of file
 
-#define ROUNDS 16
+#define ROUNDS 5
 
 void print_data(uint64_t output) {
     printf("%016lx\n", output);
 }
 
 void encrypt(uint64_t* data, uint64_t* r_key) {
-    Permutation(data, true);
+    //Permutation(data, true);
     for(int ii = 0; ii < ROUNDS; ii++)
         rounds(data, r_key[ii]);
-    Permutation(data, false);
+    //Permutation(data, false);
 }
 
 void decrypt(uint64_t* data, uint64_t* r_key) {

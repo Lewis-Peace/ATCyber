@@ -13,7 +13,13 @@
 #include <iostream>
 #include <iomanip>
 #include "src/DES.c"
+#include <math.h>
 #include <vector>
+#include <limits.h>
+
+#define MASTER_KEY 0x0
+#define ATTACK_REPEAT 10
+using std::vector;
 
 class tools {
 private:
@@ -22,14 +28,43 @@ public:
     tools(/* args */);
     ~tools();
 
-    int static linear_operation(uint8_t value, uint8_t mask) {
+    static int max_element(int array[ATTACK_REPEAT]) {
+        int result = INT_MIN;
+        for (size_t i = 0; i < ATTACK_REPEAT; i++) {
+            if (array[i] > result) {
+                result = array[i];
+            }
+        }
+        return result;
+    }
+
+    static int min_element(int array[ATTACK_REPEAT]) {
+        int result = INT_MAX;
+        for (size_t i = 0; i < ATTACK_REPEAT; i++) {
+            if (array[i] < result) {
+                result = array[i];
+            }
+        }
+        return result;
+    }
+
+    int static mask_and_xor(uint64_t value, uint64_t mask) {
         value = value & mask;
-        uint8_t result = 0;
+        uint64_t result = 0;
         for (int i = 0; i < 64; i++) {
             result ^= value & 0b1;
             value = value >> 1;    
         }
         return result;
+    }
+
+    static uint64_t random_plain() {
+        uint64_t value = 0;
+        for (int i = 0; i < 64; i++) {
+            value += (rand() % 2);
+            value = value << 1;
+        }
+        return value;
     }
 
     void static compute_table(int sBox_index) {
@@ -100,14 +135,15 @@ public:
             for (uint8_t j = 0; j < 64; j++) {
                 for (uint8_t input = 0; input < 64; input++) {
                     uint8_t sBox_value = DesSbox[sBox_index][((input & 0b100000) >> 4) | input & 0b1][(input & 0b11110) >> 1];
-                    if (linear_operation(input, j) == linear_operation(sBox_value, i)) {
+                    if (mask_and_xor(input, j) == mask_and_xor(sBox_value, i)) {
                         matrix[i][j]++;
                     }
                 }
             }
         }
-        
-        FILE* fh = fopen("table.txt", "w");
+        char* file_name = (char*) calloc(10, sizeof(char));
+        sprintf(file_name, "table%i.txt", sBox_index);
+        FILE* fh = fopen(file_name, "w");
         for (int i = 0; i < 64; i++) {
             for (int j = 0; j < 16; j++) {
                 fprintf(fh, "%4d ", matrix[j][i]);
@@ -118,37 +154,46 @@ public:
 
     }
 
-
-
 };
 
-using std::vector;
+void print_keys() {
+    uint64_t r_key[ROUNDS];
+    r_key[0] = MASTER_KEY;
+    uint64_t next_key;
 
-class mask {
-    public:
-        vector<int> active_bits;
+    for(int ii = 0; ii < ROUNDS; ii++)
+    {
+        key_schedule(&r_key[ii], &next_key, ii);
+        if(ii != ROUNDS - 1)
+            r_key[ii + 1] = next_key;
+    }
 
-        mask() {
-        }
+    uint8_t uno = (r_key[0] >> 22) & 0b1;
+    uint8_t due = (r_key[2] >> 22) & 0b1;
+    if (uno ^ due == 1) {
+        printf("Values %i %i\n", uno, due);
+    } else {
+        printf("Values %i %i\n", uno, due);
+    }
 
-        void add_active_bit(int i) {
-            active_bits.push_back(64 - i);
-        }
+    for (int i = 0; i < ROUNDS; i++) {
+        printf("K%i = %lx\n", i, r_key[i]);
+    }
+    
+}
 
-        uint64_t get_mask() {
-            uint64_t mask = 0;
-            for (int i = 0; i < active_bits.size(); i++) {
-                int bit_to_swap = active_bits[i];
-                mask |= (uint64_t) 0x1 << bit_to_swap;
-            }
-            return mask;
-        }
-
-    private:
-};
+void revert_key() {
+    uint64_t key = 0x400000;
+    uint64_t new_key = 0;
+    for (int i = 0; i < ROUNDS; i++) {
+        printf("K%i = %lX\n", ROUNDS - i, key);
+        addbit(&new_key, key, i, PC2[i] - 1);
+    }
+    
+}
 
 void cipher(uint64_t* data, bool encrypt_mode) {
-    uint64_t key = 0x0;
+    uint64_t key = MASTER_KEY;
     //
     // 1. Verify parity bits of the key
     //
@@ -182,43 +227,85 @@ void cipher(uint64_t* data, bool encrypt_mode) {
 
 }
 
-uint64_t random_plain() {
-    uint64_t value = 0;
-    for (int i = 0; i < 64; i++) {
-        value += (rand() % 2);
-        value = value << 1;
-    }
-    return value;
-}
-
-void attack() {
-    int N = 100, n = 0;
+void attack(uint64_t plain_mask, uint64_t cipher_mask, float p) {
+    int plaintext_number = 2 * pow(abs(p - 0.5), -2); // Calculating amount of plaintexts to achieve a ...
+                                                      // ... 99.8% success rate
+    printf("Using masks %lX and %lX\n", plain_mask, cipher_mask);
+    int N = plaintext_number, T = 0, N_half = N/2;
+    int Ti[ATTACK_REPEAT];
     uint64_t plain[N], data[N];
-    for (int i = 0; i < 100; i++) {
-        plain[i] = random_plain();
-        data[i] = plain[i];
-        cipher(&data[i], true);
-        if (tools::linear_operation(plain[i], 0x3) ^ tools::linear_operation(data[i], 0x52) == 0) {
-            n++;
+    for (int j = 0; j < ATTACK_REPEAT; j++) {
+        for (int i = 0; i < N; i++) {
+            plain[i] = tools::random_plain();
+            data[i] = plain[i];
+            cipher(&data[i], true);
+            int plain_masked = tools::mask_and_xor(plain[i], plain_mask);
+            int cipher_masked = tools::mask_and_xor(data[i], cipher_mask);
+            if (plain_masked == cipher_masked) {
+                T++;
+            }
+        }
+        Ti[j] = T;
+        T = 0;
+    }
+    
+    int max_T = tools::max_element(Ti);
+    int min_T = tools::min_element(Ti);
+    for (int i = 0; i < ATTACK_REPEAT; i++) {
+        printf("%i ", Ti[i]);
+    }
+    printf("\n");
+    
+    printf("max_T = %i, min_T = %i\n", max_T, min_T);
+    if (abs(max_T - N_half) > abs(min_T - N_half)) {
+        if (p > 0.5) {
+            printf("K[1,2,..., c] = 0\n");
+        } else {
+            printf("K[1,2,..., c] = 1\n");
+        }
+    } else {
+        if (p > 0.5) {
+            printf("K[1,2,..., c] = 1\n");
+        } else {
+            printf("K[1,2,..., c] = 0\n");
         }
     }
+}
 
-    printf("%i\n", n);
+uint64_t obtain_mask(vector<int> indexes_list) {
+    uint64_t mask = 0;
+    for (int i = 0; i < indexes_list.size(); i++) {
+        mask |= (uint64_t) 1 << indexes_list[i];
+    }
+    return mask;
 }
 
 // Main
 int main(int argc, char ** argv) {
+    printf("Running DES of %i rounds\n", ROUNDS);
+    printf("Using version with ");
+    ONE_SBOX == 0 ? printf("one sBox\n") : printf("all the sBox\n");
 
-    // Vars
     srand(time(0));
     
-    attack();
+    //print_keys();
 
-    mask m = mask();
-    m.add_active_bit(3);
-    m.add_active_bit(2);
-    m.add_active_bit(1);
-    printf("Mask %lX\n", m.get_mask());
+    vector<int> plain = {32+15, 7,18,24,27,28,29,30,31};
+    vector<int> cipher = {32+15, 7,18,24,27,28,29,30,31};
+
+    uint64_t plain_mask = obtain_mask(plain);
+    uint64_t cipher_mask = obtain_mask(cipher);
+    attack(plain_mask, cipher_mask, 0.519);
+
+
+    vector<int> m = {31,30,28,27};
+    printf("%lX\n", obtain_mask(m));
+    //for (int i = 0; i < 8; i++) {
+    //    tools::compute_table(i);
+    //}
+
+    // 11011000000000000000000000000000
+    // 011011 110000 000000 000000 000000 000000 000000 000001
 
     return 0;
 }

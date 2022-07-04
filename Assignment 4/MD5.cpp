@@ -327,10 +327,10 @@ int main() {
     srand(time(0));
 
     // Hash the message with the secret
-    string secret = gen_random(12);
-    string message = "Please hash it";
+    string secret = gen_random(12); // Random length secret
+    string message = "Please hash it"; // Original message
     string starting_message = secret + message;
-    char* result = hash_function(starting_message);
+    char* result = hash_function(starting_message); // The starting hash to extend
 
 
     string append = "Append this message pls";
@@ -338,11 +338,11 @@ int main() {
     
     // The attack
     MD5* md5_attack = new MD5(2);
-    md5_attack->add_previous_output(result);
+    md5_attack->add_previous_output(result); // Change block state to the last hash
     char* ext_data = (char*) calloc(append.size(), sizeof(char));
-    strcpy(ext_data, append.c_str());
-    md5_attack->update(ext_data);
-    char* result_extension = md5_attack->finalize();
+    strcpy(ext_data, append.c_str()); // convert string object to char*
+    md5_attack->update(ext_data); // Insert data to append
+    char* result_extension = md5_attack->finalize(); // Compute the hash
 
     // The value i shoud get
     string padded_message = pad(starting_message, 64 - (starting_message.size() % 64));
