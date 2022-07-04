@@ -14,7 +14,7 @@
 
 // Key schedule tables
 
-const int PC1[56] = {
+const int PC1_old[56] = {
    57, 49, 41, 33, 25, 17,  9,
     1, 58, 50, 42, 34, 26, 18,
    10,  2, 59, 51, 43, 35, 27,
@@ -27,7 +27,7 @@ const int PC1[56] = {
 const int Rotations[16] = {
     1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1
 };
-const int PC2[48] = {
+const int PC2_old[48] = {
    14, 17, 11, 24,  1,  5,
     3, 28, 15,  6, 21, 10,
    23, 19, 12,  4, 26,  8,
@@ -219,9 +219,9 @@ void key_schedule(uint64_t* key, uint64_t* next_key, int round)
         for(int ii = 0; ii < 56; ii++)
         {
             if(ii < 28)
-                addbit(&key_left, *key, PC1[ii] - 1, ii);
+                addbit(&key_left, *key, PC1_old[ii] - 1, ii);
             else
-                addbit(&key_right, *key, PC1[ii] - 1, ii % 28);
+                addbit(&key_right, *key, PC1_old[ii] - 1, ii % 28);
         }
     }
     // 1'. Other rounds? => Seperate key into two key halves.
@@ -259,7 +259,7 @@ void key_schedule(uint64_t* key, uint64_t* next_key, int round)
     *key = 0;
 
     for(int ii = 0; ii < 48; ii++)
-        addbit(key, *next_key, PC2[ii] - 1, ii);
+        addbit(key, *next_key, PC2_old[ii] - 1, ii);
 
     // All Good!
     // Use key in the DES rounds.
