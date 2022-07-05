@@ -5,7 +5,7 @@
 using namespace std;
 
 #define ROUNDS 3
-#define ONE_SBOX 0
+#define ONE_SBOX 1 == 1
 #define ui64 uint64_t
 #define ui32 uint32_t
 #define ui8  uint8_t

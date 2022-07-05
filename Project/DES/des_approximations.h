@@ -6,7 +6,6 @@
 using std::vector;
 
 vector<vector<int>> plain_masks = {
-    //{32+15, 7,18,24,27,28,29,30,31} 5 rounds
     {32+5, 32+11, 32+17, 32+27, 3},
     {32+25, 32+10, 32+20, 32+0, 7},
     {32+3, 32+21, 32+28, 32+13, 11},
@@ -16,7 +15,6 @@ vector<vector<int>> plain_masks = {
     {32+14, 32+30, 32+4, 32+19, 27}
     };
 vector<vector<int>> cipher_masks = {
-    //{32+15, 7,18,24,27,28,29,30,31} 5 rounds
     {32+5, 32+11, 32+17, 32+27, 3},
     {32+25, 32+10, 32+20, 32+0, 7},
     {32+3, 32+21, 32+28, 32+13, 11},
@@ -26,5 +24,6 @@ vector<vector<int>> cipher_masks = {
     {32+14, 32+30, 32+4, 32+19, 27}
     };
 
+vector<float> probabilities = {0.7,0.7,0.7,0.7,0.7,0.7,0.7};
     
 #endif // DES_APPROXIMATIONS
